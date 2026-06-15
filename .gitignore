@@ -1,0 +1,7 @@
+openwrt/
+artifacts/
+*.7z
+*.zip
+*.tar.gz
+logs_*/
+CLAUDE.md
