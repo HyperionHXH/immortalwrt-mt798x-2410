@@ -22,6 +22,9 @@ jobs:
 
     strategy:
       fail-fast: false
+      # These builds are heavy and download many shared sources. Running all
+      # variants at once has caused hosted runners to disappear mid-step.
+      max-parallel: 2
       matrix:
         include:
           - build_variant: mt7981-ax3000
@@ -101,13 +104,16 @@ jobs:
       - name: Make Download
         run: |
           cd openwrt
-          timeout 30m make download -j8 || {
-            echo "Download failed with -j8, retrying with -j1 V=s..."
-            timeout 20m make download -j1 V=s || {
-              echo "Download failed after retry" >&2
-              exit 1
-            }
-          }
+          for attempt in 1 2 3; do
+            echo "Download attempt ${attempt}/3"
+            if timeout 45m make download -j4; then
+              exit 0
+            fi
+            echo "Download attempt ${attempt} failed"
+            sleep 30
+          done
+          echo "Download failed after retries, running serial diagnostic pass..." >&2
+          timeout 30m make download -j1 V=s
 
       - name: Compile
         id: compileopenwrt

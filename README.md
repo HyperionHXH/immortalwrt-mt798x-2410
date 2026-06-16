@@ -28,3 +28,8 @@ bash ../build_all.sh
 Edit `package.conf` to add or remove extra packages.
 
 The GitHub Actions workflow builds every upstream 24.10 defconfig variant, enables xz squashfs compression, packages the images with high-compression 7z settings, and publishes the archive to GitHub Releases.
+
+## CI Notes
+
+- 2026-06-16: `logs_74264526223` showed six variants completed package/release steps. The missing variant was `mt7975-ipailna-high-power`, whose log stopped during `make download` without a compiler error. The workflow now limits matrix concurrency to 2 and retries downloads with lower parallelism to avoid hosted-runner/download-source instability.
+- Lines that contain `No squashfs images found under openwrt/bin/targets/mediatek` in successful logs are just GitHub Actions echoing the shell script. Treat them as failures only if they appear after the script actually runs and the step exits non-zero.
