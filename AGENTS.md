@@ -38,3 +38,4 @@ The workflow enables:
 
 This keeps the firmware itself smaller and then packages release artifacts as tightly as practical in GitHub Actions.
 
+Do not enable `luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client` or `luci-app-passwall_INCLUDE_tuic_client` in CI unless the runner has substantially more disk space. On GitHub-hosted `ubuntu-22.04`, those options build Rust/LLVM from source and have failed with `No space left on device`.

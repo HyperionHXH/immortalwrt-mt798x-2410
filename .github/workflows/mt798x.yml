@@ -51,12 +51,13 @@ jobs:
         with:
           swap-size-mb: 512
           temp-reserve-mb: 1
-          # Reserve enough root space for apt (~250MB lists + packages + dpkg tmp)
-          root-reserve-mb: 4096
+          # Keep enough root space for apt and system package extraction.
+          root-reserve-mb: 8192
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
+          remove-docker-images: 'true'
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,7 +84,7 @@ jobs:
           build_date="$(date +%Y%m%d)"
           image_prefix=immortalwrt-24.10-${build_variant}-scutclient
           echo "image_name=${image_prefix}-${build_date}" >> $GITHUB_ENV
-          echo "release_tag=immortalwrt-mt798x-24.10-scutclient-${build_date}" >> $GITHUB_ENV
+          echo "release_tag=${image_prefix}-${build_date}" >> $GITHUB_ENV
 
           git clone --depth=1 -b $REPO_BRANCH $REPO_URL openwrt
 
@@ -124,7 +125,14 @@ jobs:
         run: |
           rm -rf ./artifact/
           mkdir -p ./artifact/
-          mv openwrt/bin/targets/mediatek/${{ env.platform }}/immortalwrt-*squashfs* ./artifact/
+          echo "Available target files:"
+          find openwrt/bin/targets/mediatek -maxdepth 3 -type f -printf '%p\n' | sort
+          mapfile -t images < <(find openwrt/bin/targets/mediatek -maxdepth 3 -type f -name '*squashfs*' | sort)
+          if [ "${#images[@]}" -eq 0 ]; then
+            echo "No squashfs images found under openwrt/bin/targets/mediatek" >&2
+            exit 1
+          fi
+          cp "${images[@]}" ./artifact/
           cd artifact
           7z a -t7z -m0=lzma2 -mx=9 -md=256m -mfb=273 -ms=on -mmt=on -myx=9 ../${{ env.image_name }}.7z .
 
