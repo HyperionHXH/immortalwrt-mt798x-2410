@@ -10,6 +10,21 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      build_variant:
+        description: Build variant to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - mt7981-ax3000
+          - mt7981-ax3000-dae
+          - mt7975-ipailna-high-power
+          - mt7975-ipailna-high-power_dae
+          - mt7986-ax4200-bpir3_mini
+          - mt7986-ax6000
+          - mt7986-ax6000_dae
 
 jobs:
   build:
@@ -22,9 +37,6 @@ jobs:
 
     strategy:
       fail-fast: false
-      # These builds are heavy and download many shared sources. Running all
-      # variants at once has caused hosted runners to disappear mid-step.
-      max-parallel: 2
       matrix:
         include:
           - build_variant: mt7981-ax3000
@@ -49,7 +61,20 @@ jobs:
             platform: mt7986
 
     steps:
+      - name: Select variant
+        run: |
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] || \
+             [ "${{ github.event.inputs.build_variant }}" = "all" ] || \
+             [ "${{ github.event.inputs.build_variant }}" = "${{ matrix.build_variant }}" ]; then
+            echo "should_build=true" >> $GITHUB_ENV
+            echo "Building ${{ matrix.build_variant }}"
+          else
+            echo "should_build=false" >> $GITHUB_ENV
+            echo "Skipping ${{ matrix.build_variant }}; selected ${{ github.event.inputs.build_variant }}"
+          fi
+
       - name: Maximize build space
+        if: env.should_build == 'true'
         uses: easimon/maximize-build-space@v8
         with:
           swap-size-mb: 512
@@ -63,9 +88,11 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
+        if: env.should_build == 'true'
         uses: actions/checkout@v4
 
       - name: Init build dependencies
+        if: env.should_build == 'true'
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -83,6 +110,7 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
 
       - name: Prepare
+        if: env.should_build == 'true'
         run: |
           build_date="$(date +%Y%m%d)"
           image_prefix=immortalwrt-24.10-${build_variant}-scutclient
@@ -92,6 +120,7 @@ jobs:
           git clone --depth=1 -b $REPO_BRANCH $REPO_URL openwrt
 
           cd openwrt
+          mkdir -p dl
           bash ../01_prepare.sh
 
           test -f defconfig/${build_variant}.config
@@ -101,7 +130,17 @@ jobs:
           echo "CONFIG_TARGET_SQUASHFS_XZ=y" >> .config
           make defconfig
 
+      - name: Cache downloads
+        if: env.should_build == 'true'
+        uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: ${{ runner.os }}-openwrt-dl-${{ hashFiles('package.conf', '01_prepare.sh', '02_add_package.sh', '.github/workflows/mt798x.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-dl-
+
       - name: Make Download
+        if: env.should_build == 'true'
         run: |
           cd openwrt
           for attempt in 1 2 3; do
@@ -116,6 +155,7 @@ jobs:
           timeout 30m make download -j1 V=s
 
       - name: Compile
+        if: env.should_build == 'true'
         id: compileopenwrt
         run: |
           cd openwrt
@@ -128,6 +168,7 @@ jobs:
           }
 
       - name: Package
+        if: env.should_build == 'true'
         run: |
           rm -rf ./artifact/
           mkdir -p ./artifact/
@@ -143,6 +184,7 @@ jobs:
           7z a -t7z -m0=lzma2 -mx=9 -md=256m -mfb=273 -ms=on -mmt=on -myx=9 ../${{ env.image_name }}.7z .
 
       - name: Create release
+        if: env.should_build == 'true'
         id: create_release
         uses: ncipollo/release-action@v1.13.0
         with:
