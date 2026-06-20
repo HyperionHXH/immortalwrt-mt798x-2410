@@ -2,6 +2,8 @@
 
 Based on `padavanonly/immortalwrt-mt798x-6.6` branch `openwrt-24.10-6.6`.
 
+中文说明：[固件自定义、插件增减与 GitHub Actions 编译指南](GUIDE.zh-CN.md)
+
 ## Device Variants
 
 | Variant | Platform |
